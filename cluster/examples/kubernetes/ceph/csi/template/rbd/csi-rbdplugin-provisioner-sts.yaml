@@ -76,6 +76,7 @@ spec:
             - "--metricsport={{ .RBDGRPCMetricsPort }}"
             - "--metricspath=/metrics"
             - "--enablegrpcmetrics={{ .EnableCSIGRPCMetrics }}"
+            - "--forcecephkernelclient=true"
           env:
             - name: POD_IP
               valueFrom:
@@ -115,6 +116,7 @@ spec:
             - "--metricspath=/metrics"
             - "--polltime=60s"
             - "--timeout=3s"
+            - "--forcecephkernelclient=true"
           env:
             - name: CSI_ENDPOINT
               value: unix:///csi/csi-provisioner.sock
