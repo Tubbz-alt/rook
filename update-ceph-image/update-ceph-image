@@ -1,0 +1,42 @@
+#!/bin/bash
+set -eEuo pipefail
+
+THIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+read -r NEW_CEPH_IMAGE < "$THIS_DIR"/images/ceph-ceph
+
+err_out() {
+  echo "ERROR: $@" 1>&2
+  exit 1
+}
+
+if ! kubectl get node > /dev/null; then
+  err_out "cannot connect to Kubernetes cluster"
+fi
+
+echo "" # newline
+
+kubectl get cephcluster --all-namespaces --output jsonpath='{range .items[*]}{.metadata.namespace} {.metadata.name}{"\n"}' |
+  while read -r namespace name; do
+    echo "Found Rook-Ceph cluster '$name' in namespace '$namespace'"
+    # name and namespace should be the same almost always, but we do support the case where they
+    # are different just in case
+
+    curr_img="$(kubectl --namespace "$namespace" get cephcluster "$name" --output jsonpath='{.spec.cephVersion.image}')"
+    if [[ "$curr_img" = "$NEW_CEPH_IMAGE" ]]; then
+      echo "    cluster '$name' is already updated to the latest Ceph image ($NEW_CEPH_IMAGE)"
+      continue
+    fi
+
+    if [[ "$curr_img" != *"registry.suse."* ]]; then
+      echo "    cluster '$name' is not running a SUSE image; will NOT update this cluster"
+      continue
+    fi
+
+    echo "    cluster '$name' will be updated from image '$curr_img' to image '$NEW_CEPH_IMAGE'"
+    kubectl --namespace "$namespace" patch CephCluster "$name" --type=merge \
+      --patch "{\"spec\": {\"cephVersion\": {\"image\": \"$NEW_CEPH_IMAGE\"}}}" > /dev/null
+  done
+
+echo "" # newline
+echo "Finished updating Rook-Ceph clusters"
